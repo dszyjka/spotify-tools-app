@@ -1,8 +1,8 @@
 mod spotify_client;
 
+use reqwest;
 use serde::Serialize;
 use tokio;
-use reqwest;
 
 #[derive(Serialize)]
 struct QueueBody<'a> {
