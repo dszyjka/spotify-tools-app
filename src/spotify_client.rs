@@ -10,19 +10,36 @@ struct HttpErr(u16);
 #[derive(Serialize)]
 struct RecentlyPlayedReq {
     limit: i32,
-    after: i32
+    before: i32,
 }
 
-#[derive(Deserialize)]
-pub struct PlayHistoryObj {
-    artists: Vec<Artist>,
+#[derive(Deserialize, Debug)]
+pub struct RecentlyPlayedResp {
+    items: Vec<Item>
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
+pub struct Item {
+    track: Track
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Track {
+    #[serde(rename = "name")]
+    track_title: String,
+    #[serde(rename = "id")]
+    track_id: String,
+    artists: Vec<Artist>
+}
+
+#[derive(Deserialize, Debug)]
 pub struct Artist {
-    pub artist_name: String,
-    pub artist_id: String,
-    pub uri: String,
+    #[serde(rename = "name")]
+    artist_name: String,
+    #[serde(rename = "id")]
+    artist_id: String,
+    #[serde(rename = "href")]
+    artist_link: String,
 }
 
 impl fmt::Display for HttpErr {
@@ -42,9 +59,9 @@ pub async fn add_to_queue(
     let response = client
         .post(url)
         .header("Content-Type", "application/json")
-        .body(serde_json::to_string(&body).inspect_err(
-            |e| println!("Failed to create body: {}", e),
-        )?)
+        .body(serde_json::to_string(&body).inspect_err(|e| {
+            println!("Failed to create body: {}", e)
+        })?)
         .send()
         .await?;
 
@@ -56,21 +73,23 @@ pub async fn add_to_queue(
 
 pub async fn fetch_recently_played(
     client: reqwest::Client,
-    after: i32,
-) -> Result<Vec<PlayHistoryObj>, Box<dyn Error>> {
+    before: i32,
+) -> Result<Vec<RecentlyPlayedResp>, Box<dyn Error>> {
     let url =
         "https://api.spotify.com/v1/me/player/recently-played";
 
-    let query_params = RecentlyPlayedReq{limit: 50, after};
+    let query_params = RecentlyPlayedReq { limit: 50, before };
 
     let response = client
         .get(url)
         .header("Content-Type", "application/json")
         .query(&query_params)
-        .send().await?;
+        .send()
+        .await?;
 
     let body_text = response.text().await?;
-    let recently_played: Vec<PlayHistoryObj> = serde_json::from_str(&body_text)?;
+    let recently_played: Vec<RecentlyPlayedResp> =
+        serde_json::from_str(&body_text)?;
 
     Ok(recently_played)
 }
