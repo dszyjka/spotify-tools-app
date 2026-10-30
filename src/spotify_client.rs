@@ -2,10 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 use std::{error::Error, fmt};
 
-use crate::QueueBody;
-
-#[derive(Debug)]
-struct HttpErr(u16);
+use crate::QueueParams;
 
 #[derive(Serialize)]
 struct RecentlyPlayedReq {
@@ -14,13 +11,8 @@ struct RecentlyPlayedReq {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct RecentlyPlayedResp {
-    items: Vec<Item>
-}
-
-#[derive(Deserialize, Debug)]
-pub struct Item {
-    track: Track
+pub struct Items<T> {
+    items: Vec<T>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -29,7 +21,7 @@ pub struct Track {
     track_title: String,
     #[serde(rename = "id")]
     track_id: String,
-    artists: Vec<Artist>
+    artists: Vec<Artist>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -42,6 +34,16 @@ pub struct Artist {
     artist_link: String,
 }
 
+#[derive(Serialize, Debug)]
+pub struct TopItemsReq {
+    limit: i32,
+    offset: i32,
+    time_range: String,
+}
+
+#[derive(Debug)]
+struct HttpErr(u16);
+
 impl fmt::Display for HttpErr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "HttpErr Code: {}", self.0)
@@ -52,16 +54,14 @@ impl Error for HttpErr {}
 
 pub async fn add_to_queue(
     client: reqwest::Client,
-    body: QueueBody<'_>,
+    query_params: &QueueParams<'_>,
 ) -> Result<(), Box<dyn Error>> {
-    let url = "https://api.spotify.com/v1/me/player/queue/";
+    let url = "https://api.spotify.com/v1/me/player/queue";
 
     let response = client
         .post(url)
         .header("Content-Type", "application/json")
-        .body(serde_json::to_string(&body).inspect_err(|e| {
-            println!("Failed to create body: {}", e)
-        })?)
+        .query(query_params)
         .send()
         .await?;
 
@@ -74,7 +74,7 @@ pub async fn add_to_queue(
 pub async fn fetch_recently_played(
     client: reqwest::Client,
     before: i32,
-) -> Result<Vec<RecentlyPlayedResp>, Box<dyn Error>> {
+) -> Result<Items<Track>, Box<dyn Error>> {
     let url =
         "https://api.spotify.com/v1/me/player/recently-played";
 
@@ -88,8 +88,32 @@ pub async fn fetch_recently_played(
         .await?;
 
     let body_text = response.text().await?;
-    let recently_played: Vec<RecentlyPlayedResp> =
+    let recently_played: Items<Track> =
         serde_json::from_str(&body_text)?;
 
     Ok(recently_played)
+}
+
+pub async fn fetch_user_top_artists(
+    client: reqwest::Client,
+) -> Result<Items<Artist>, Box<dyn Error>> {
+    let url = "https://api.spotify.com/v1/me/top/artists";
+
+    let query_params = TopItemsReq {
+        limit: 50,
+        time_range: String::from("medium_term"),
+        offset: 0,
+    };
+
+    let response = client
+        .get(url)
+        .header("Content-Type", "application/json")
+        .query(&query_params)
+        .send()
+        .await?;
+
+    let body_text = response.text().await?;
+    let top_items: Items<Artist> = serde_json::from_str(&body_text)?;
+
+    Ok(top_items)
 }

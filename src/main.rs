@@ -5,7 +5,7 @@ use serde::Serialize;
 use tokio;
 
 #[derive(Serialize)]
-struct QueueBody<'a> {
+struct QueueParams<'a> {
     uri: &'a str,
     device_id: &'a str,
 }
