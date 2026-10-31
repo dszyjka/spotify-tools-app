@@ -1,3 +1,4 @@
+use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::{error::Error, fmt};
@@ -13,6 +14,11 @@ struct RecentlyPlayedReq {
 #[derive(Deserialize, Debug)]
 pub struct Items<T> {
     items: Vec<T>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct RecentlyPlayedTrack {
+    track: Track,
 }
 
 #[derive(Deserialize, Debug)]
@@ -66,7 +72,7 @@ pub async fn add_to_queue(
         .await?;
 
     match response.status() {
-        reqwest::StatusCode::NO_CONTENT => Ok(()),
+        StatusCode::NO_CONTENT | StatusCode::OK => Ok(()),
         other => Err(HttpErr(other.as_u16()).into()),
     }
 }
@@ -74,7 +80,7 @@ pub async fn add_to_queue(
 pub async fn fetch_recently_played(
     client: reqwest::Client,
     before: i32,
-) -> Result<Items<Track>, Box<dyn Error>> {
+) -> Result<Items<RecentlyPlayedTrack>, Box<dyn Error>> {
     let url =
         "https://api.spotify.com/v1/me/player/recently-played";
 
@@ -88,7 +94,7 @@ pub async fn fetch_recently_played(
         .await?;
 
     let body_text = response.text().await?;
-    let recently_played: Items<Track> =
+    let recently_played: Items<RecentlyPlayedTrack> =
         serde_json::from_str(&body_text)?;
 
     Ok(recently_played)
@@ -113,7 +119,8 @@ pub async fn fetch_user_top_artists(
         .await?;
 
     let body_text = response.text().await?;
-    let top_items: Items<Artist> = serde_json::from_str(&body_text)?;
+    let top_items: Items<Artist> =
+        serde_json::from_str(&body_text)?;
 
     Ok(top_items)
 }
